@@ -84,6 +84,11 @@ def load_data(file: bytes = File(...), name: str = "data_token"):
         return dict(success=0, message=f'Failed to load data.\n{exc}')
 
 
+@app.post('/run_example2')
+def run_example2():
+    run_example()
+
+
 @app.get('/do_trading')
 def do_trading(
         grid_token_evaluating: str = Query('',
@@ -848,19 +853,26 @@ def run_example():
     :return:
     """
     # data_path = 'static/HT34-000665-5min.xls'
-    data_path = 'static/SZ#000665#1day.csv'
-    shijian, shuju = parse_excel(data_path)
+    cwd = os.getcwd()
+    print(f"pwd is {cwd}")
+    # data_path = '../static/data/000155.csv'
+    # data_path = os.path.abspath(data_path)
+    data_token = '000155.csv'
+    data_start_index = '2024/09/01'
+    data_end_index = '2025/07/31'
+    shijian, shuju = parse_data(data_token, data_start_index, data_end_index)
+    # shijian, shuju = parse_excel(data_path)
     result = grid_func(
         shuju=shuju,  # 数据
-        touruzijin=10000,  # 投入总资金
+        touruzijin=20000,  # 投入总资金
         jizhunjia=0,  # 基准价，0则以初始价为基准价
-        dancifene=100,  # 单次交易股数
+        dancifene=300,  # 单次交易股数
         jiancangfene=1000,  # 建仓股数
-        wanggeshangjie=12,  # 网格上界
-        wanggexiajie=6,  # 网格下界
-        wanggeleixing=1,  # 网格类型，1为差价，2为百分比
-        mairuyuzhi=0.5,  # 买入阈值
-        maichuyuzhi=0.5,  # 卖出阈值
+        wanggeshangjie=13,  # 网格上界
+        wanggexiajie=9,  # 网格下界
+        wanggeleixing=2,  # 网格类型，1为差价，2为百分比
+        mairuyuzhi=9,  # 买入阈值
+        maichuyuzhi=10,  # 卖出阈值
         shouxufeilv=0.0001,  # 手续费率
     )
     # 投入资金：10000，回报总价值：17342.759（其中现金：8740.759，份额价值：8602.000），盈亏比例：73.43%
