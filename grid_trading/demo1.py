@@ -14,26 +14,31 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Alibaba PuHuiTi 2.0'
 plt.rcParams['axes.unicode_minus'] = False  # 设置字体
 # 数据样本
-_data_root = r'/home/mw/input/a1118017'
-data_name = '上证50指数.csv'
-data_path = os.path.join(_data_root, data_token)
+_data_root = r'D:\code\pycharm\test\grid-trading-system\mnt\data'
+file_name = 'sz002381.xlsx'
+data_path = os.path.join(_data_root, file_name)
+print(f'data_path is {data_path}')
 
-df = pd.read_csv(data_path)
+df = pd.read_excel(data_path, header=2).rename(columns=lambda x: x.strip())
 # 调整数据clumns，且按照时间升序
+#       时间	    开盘	    最高	    最低	    收盘	         成交量
 df['openinterest'] = 0  # 添加一列数据
-data = df.loc[:, ['open', 'high', 'low', 'close', 'vol', 'openinterest', 'trade_date']]  # 选择需要的数据
-data.columns = ['open', 'high', 'low', 'close', 'volume', 'openinterest', 'datetime']  # 修改列名
-data = data.set_index(pd.to_datetime(data['datetime'].astype('str'))).sort_index()  # 把datetime列改为时间格式并排序
+# data = df.loc[:, ['open', 'high', 'low', 'close', 'vol', 'openinterest', 'trade_date']]  # 选择需要的数据
+# df = df.loc[2:]
+data = df.loc[:, ['时间', '开盘', '最高', '最低', '收盘', '成交量', 'openinterest']]  # 选择需要的数据
+data.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest']  # 修改列名
+data = data.set_index(
+    pd.to_datetime(data['datetime'].astype('str'), errors='coerce')).sort_index()  # 把datetime列改为时间格式并排序
 # 这个数据是整理过的，实际操作中可能会有一下缺失数据，所以需要做一下填充。
 data.loc[:, ['volume', 'openinterest']] = data.loc[:, ['volume', 'openinterest']].fillna(0)
 data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].fillna(method='pad')
 cerebro = bt.Cerebro()  # 引入大脑，并实例化
 datafeed = bt.feeds.PandasData(dataname=data,  # 导入前面整理好的pddata数据
-                               fromdate=datetime.datetime(2016, 1, 1),  # 起始时间
-                               todate=datetime.datetime(2022, 12, 31))  # 结束时间
-cerebro.adddata(datafeed, name='000300.SH')  # 通过cerebro.adddata添加给大脑，并通过 name赋值 实现数据集与股票的一一对应
+                               fromdate=datetime.datetime(2024, 1, 1),  # 起始时间
+                               todate=datetime.datetime(2025, 5, 31))  # 结束时间
+cerebro.adddata(datafeed, name='000155')  # 通过cerebro.adddata添加给大脑，并通过 name赋值 实现数据集与股票的一一对应
 print('读取成功')
-cerebro.broker.setcash(1000000.0)  # 设置起始资金
+cerebro.broker.setcash(20000.0)  # 设置起始资金
 
 
 class bollqt(bt.Strategy):  # bollqt为此策略的名称，为自定义。
@@ -57,6 +62,9 @@ class bollqt(bt.Strategy):  # bollqt为此策略的名称，为自定义。
                 print('不符合卖出条件')
 
 
-cerebro.broker.setcash(1000000.0)  # 设置起始资金
+# cerebro.broker.setcash(1000000.0)  # 设置起始资金
 cerebro.addstrategy(bollqt)  # 把策略添加给大脑
 cerebro.run()  # 运行
+
+if __name__ == '__main__':
+    print(123)
