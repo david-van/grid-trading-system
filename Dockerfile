@@ -17,7 +17,7 @@ apt-get clean -y && \
 
 RUN mkdir -p /app
 
-COPY ./requirements.txt /tmp/requirements.txt
+COPY requirements.txt.bak /tmp/requirements.txt
 
 #RUN pip3 install -r /app/requirements.txt -i https://mirrors.aliyun.com/pypi/simple --trusted-host mirrors.aliyun.com
 RUN pip install --no-cache-dir -r /tmp/requirements.txt -i http://mirrors.cloud.tencent.com/pypi/simple --trusted-host mirrors.cloud.tencent.com
