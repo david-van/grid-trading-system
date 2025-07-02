@@ -3,7 +3,7 @@ backtrader
 matplotlib
 
 #numpy
-pandas==1.5.3
+pandas
 #starlette==0.27.0
 #uvicorn==0.22.0
 #python-multipart

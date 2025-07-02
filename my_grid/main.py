@@ -1,13 +1,16 @@
 # -*- coding:utf-8 -*-
 
 
-#正常显示画图时出现的中文和负号
+# 正常显示画图时出现的中文和负号
 from pylab import mpl
-mpl.rcParams['font.sans-serif']=['SimHei']
+
+mpl.rcParams['font.sans-serif'] = ['SimHei']
 import backtrader as bt
 import numpy as np
 from my_grid import backtest
-#策略
+
+
+# 策略
 class GridStrategy(bt.Strategy):
     params = (
         ("printlog", True),
@@ -28,12 +31,11 @@ class GridStrategy(bt.Strategy):
         # 总手续费
         self.comm = 0.0
 
-
     def next(self):
         # print(self.last_price_index)
         # 开仓
         if self.last_price_index == None:
-            # print("b", len(self.price_levels))
+            print("b", self.price_levels)
             for i in range(len(self.price_levels)):
                 price = self.data.close[0]
                 # print("c", i, price, self.price_levels[i][0])
@@ -67,13 +69,11 @@ class GridStrategy(bt.Strategy):
                 self.long_short = None
                 self.order_target_percent(target=self.last_price_index / (len(self.price_levels) - 1))
 
-
     # 输出交易记录
     def log(self, txt, dt=None, doprint=False):
         if self.params.printlog or doprint:
             dt = dt or self.datas[0].datetime.date(0)
             print('%s, %s' % (dt.isoformat(), txt))
-
 
     def notify_order(self, order):
         # 有交易提交/被接受，啥也不做
@@ -88,25 +88,24 @@ class GridStrategy(bt.Strategy):
                      order.executed.value,
                      order.executed.comm))
                 self.buyprice = order.executed.price
-
+            elif order.issell():
+                self.log(
+                    '执行卖出, 价格: %.2f, 成本: %.2f, 手续费 %.2f' %
+                    (order.executed.price,
+                     order.executed.value,
+                     order.executed.comm))
 
             self.comm += order.executed.comm
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
             self.log("交易失败")
             self.order = None
         else:
-            self.log(
-                '执行卖出, 价格: %.2f, 成本: %.2f, 手续费 %.2f' %
-                (order.executed.price,
-                 order.executed.value,
-                 order.executed.comm))
-            self.comm += order.executed.comm
+            self.log("未知状态交易失败")
+            self.order = None
 
     # 输出手续费
     def stop(self):
         self.log("手续费:%.2f 成本比例:%.5f" % (self.comm, self.comm / self.broker.getvalue()))
-
-
 
 
 if __name__ == "__main__":
