@@ -272,27 +272,39 @@ class BackTest:
 
     # 获取数据
     def _getData(self, code):
-        # _data_root = r'D:\code\pycharm\test\grid-trading-system\mnt\data'
-        # file_name = 'sz002381.xlsx'
-        # data_path = os.path.join(_data_root, file_name)
-        # print(f'data_path is {data_path}')
-        #
-        # df = pd.read_excel(data_path, header=2).rename(columns=lambda x: x.strip())
-        filename = code + ".csv"
-        path = "./data/"
-        # 如果数据目录不存在，创建目录
-        if not os.path.exists(path):
-            os.makedirs(path)
-        # 已有数据文件，直接读取数据
-        if os.path.exists(path + filename):
-            df = pd.read_csv(path + filename)
-        else:  # 没有数据文件，用tushare下载
-            df = ts.get_k_data(code, autype="qfq", start=self.__start, end=self.__end)
-            df.to_csv(path + filename)
-        df.index = pd.to_datetime(df.date)
-        df['openinterest'] = 0
-        df = df[['open', 'high', 'low', 'close', 'volume', 'openinterest']]
-        return df
+        _data_root = r'D:\code\python\grid-trading-system\mnt\data'
+        file_name = '300363.xlsx'
+        data_path = os.path.join(_data_root, file_name)
+        print(f'data_path is {data_path}')
+
+        df = pd.read_excel(data_path, header=2).rename(columns=lambda x: x.strip())
+        # 调整数据clumns，且按照时间升序
+#       时间	    开盘	    最高	    最低	    收盘	         成交量
+        df['openinterest'] = 0  # 添加一列数据
+        # data = df.loc[:, ['open', 'high', 'low', 'close', 'vol', 'openinterest', 'trade_date']]  # 选择需要的数据
+        # df = df.loc[2:]
+        data = df.loc[:, ['时间', '开盘', '最高', '最低', '收盘', '成交量', 'openinterest']]  # 选择需要的数据
+        data.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest']  # 修改列名
+        data = data.set_index(
+            pd.to_datetime(data['datetime'].astype('str'), errors='coerce')).sort_index()  # 把datetime列改为时间格式并排序
+        # 这个数据是整理过的，实际操作中可能会有一下缺失数据，所以需要做一下填充。
+        data.loc[:, ['volume', 'openinterest']] = data.loc[:, ['volume', 'openinterest']].fillna(0)
+        data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].fillna(method='pad')
+        # filename = code + ".csv"
+        # path = "./data/"
+        # # 如果数据目录不存在，创建目录
+        # if not os.path.exists(path):
+        #     os.makedirs(path)
+        # # 已有数据文件，直接读取数据
+        # if os.path.exists(path + filename):
+        #     df = pd.read_csv(path + filename)
+        # else:  # 没有数据文件，用tushare下载
+        #     df = ts.get_k_data(code, autype="qfq", start=self.__start, end=self.__end)
+        #     df.to_csv(path + filename)
+        # df.index = pd.to_datetime(df.date)
+        # df['openinterest'] = 0
+        # df = df[['open', 'high', 'low', 'close', 'volume', 'openinterest']]
+        return data
 
 
 # 用empyrical库计算风险指标
