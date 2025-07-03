@@ -12,7 +12,7 @@ lg = bs.login()
 print('login respond error_code:'+lg.error_code)
 print('login respond  error_msg:'+lg.error_msg)
 
-stock_code = 'sh.603612'
+stock_code = 'sh.513010'
 
 frequency = '60'
 start_date = '2023-01-01'
