@@ -12,3 +12,5 @@ tqdm
 efinance
 empyrical
 tushare
+fastapi[all]
+baostock
