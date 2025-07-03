@@ -20,6 +20,8 @@ import tushare as ts
 from backtrader.utils.py3 import map
 from scipy import stats
 
+from my_grid.main import MyStockCommissionScheme
+
 
 # 回测类
 class BackTest:
@@ -110,7 +112,13 @@ class BackTest:
         # 添加基准观察器
         self.__cerebro.addobserver(bt.observers.Benchmark, data=self.__benchFeed, timeframe=bt.TimeFrame.NoTimeFrame)
         # 设置手续费
-        self.__cerebro.broker.setcommission(commission=self.__commission)
+        # self.__cerebro.broker.setcommission(commission=self.__commission)
+        self.__cerebro.broker.addcommissioninfo(MyStockCommissionScheme())
+
+        filler = bt.broker.fillers.FixedSize(size=200)
+        self.__cerebro.broker.set_filler(filler)
+        # 设置收盘成交作弊模式
+        self.__cerebro.broker.set_coc(True)
         # 设置初始资金
         self.__cerebro.broker.setcash(self.__initcash)
         # 添加分析对象
@@ -272,14 +280,14 @@ class BackTest:
 
     # 获取数据
     def _getData(self, code):
-        _data_root = r'D:\code\python\grid-trading-system\mnt\data'
+        _data_root = r'D:\code\pycharm\test\grid-trading-system\mnt\data'
         file_name = '300363.xlsx'
         data_path = os.path.join(_data_root, file_name)
         print(f'data_path is {data_path}')
 
         df = pd.read_excel(data_path, header=2).rename(columns=lambda x: x.strip())
         # 调整数据clumns，且按照时间升序
-#       时间	    开盘	    最高	    最低	    收盘	         成交量
+        #       时间	    开盘	    最高	    最低	    收盘	         成交量
         df['openinterest'] = 0  # 添加一列数据
         # data = df.loc[:, ['open', 'high', 'low', 'close', 'vol', 'openinterest', 'trade_date']]  # 选择需要的数据
         # df = df.loc[2:]
@@ -289,7 +297,9 @@ class BackTest:
             pd.to_datetime(data['datetime'].astype('str'), errors='coerce')).sort_index()  # 把datetime列改为时间格式并排序
         # 这个数据是整理过的，实际操作中可能会有一下缺失数据，所以需要做一下填充。
         data.loc[:, ['volume', 'openinterest']] = data.loc[:, ['volume', 'openinterest']].fillna(0)
-        data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].fillna(method='pad')
+        data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].fillna(
+            method='pad')
+        # data.loc[:, ['volume']] = data.loc[:, ['volume']] * 1000
         # filename = code + ".csv"
         # path = "./data/"
         # # 如果数据目录不存在，创建目录
@@ -428,7 +438,8 @@ def test():
 
     startdate = "2017-01-01"
     endate = "2018-11-09"
-    stocks = {'中国平安': '601318', '格力电器': '000651', '招商银行': '600036', '恒生电子': '600570', '中信证券': '600030',
+    stocks = {'中国平安': '601318', '格力电器': '000651', '招商银行': '600036', '恒生电子': '600570',
+              '中信证券': '600030',
               '贵州茅台': '600519'}
     results = stocks_alpha_beta(stocks, startdate, endate)
     print("自己计算结果")
