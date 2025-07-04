@@ -16,11 +16,32 @@ import empyrical as ey
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import tushare as ts
+import pyfolio as pf
 from backtrader.utils.py3 import map
-from scipy import stats
 
-from my_grid.main import MyStockCommissionScheme
+class MyStockCommissionScheme(bt.CommInfoBase):
+    '''
+    1.佣金按照百分比。    2.每一笔交易有一个最低值，比如5块，当然有些券商可能会免5.
+    3.卖出股票还需要收印花税。    4.可能有的平台还需要收平台费。    '''
+    params = (
+        ('stampduty', 0.0005),  # 印花税率
+        ('commission', 0.0005),  # 佣金率
+        ('stocklike', True),  # 股票类资产，不考虑保证金
+        ('commtype', bt.CommInfoBase.COMM_PERC),  # 按百分比
+        ('minCommission', 5),  # 最小佣金
+        ('platFee', 0),  # 平台费用
+    )
+
+    def _getcommission(self, size, price, pseudoexec):
+        '''
+        size>0，买入操作。        size<0，卖出操作。        '''
+        if size > 0:  # 买入，不考虑印花税，需要考虑最低收费
+            return max(size * price * self.p.commission, self.p.minCommission) + self.p.platFee
+        elif size < 0:  # 卖出，考虑印花税。
+            return max(abs(size) * price * self.p.commission, self.p.minCommission) + abs(
+                size) * price * self.p.stampduty + self.p.platFee
+        else:
+            return 0  # 防止特殊情况下size为0.
 
 
 # 回测类
@@ -55,6 +76,7 @@ class BackTest:
         if self.__bDraw == True:
             self._drawResult()
         self.__returns = self._timeReturns(self.__results)
+        self.show_1()
         self.__benchReturns = self._getBenchmarkReturns(self.__results)
         self._riskAnaly(self.__returns, self.__benchReturns, self.__backtestResult)
         return self.getResult()
@@ -72,15 +94,15 @@ class BackTest:
         return self.__returns, self.__benchReturns
 
     # 执行参数优化的回测
-    def optRun(self, *args, **kwargs):
-        self._optStrategy(*args, **kwargs)
-        results = self.__cerebro.run()
-        if len(kwargs) == 1:
-            testResults = self._optResult(results, **kwargs)
-        elif len(kwargs) > 1:
-            testResults = self._optResultMore(results, **kwargs)
-        self._init()
-        return testResults
+    # def optRun(self, *args, **kwargs):
+    #     self._optStrategy(*args, **kwargs)
+    #     results = self.__cerebro.run()
+    #     if len(kwargs) == 1:
+    #         testResults = self._optResult(results, **kwargs)
+    #     elif len(kwargs) > 1:
+    #         testResults = self._optResultMore(results, **kwargs)
+    #     self._init()
+    #     return testResults
 
     # 输出回测结果
     def output(self):
@@ -131,6 +153,7 @@ class BackTest:
         self.__cerebro.addanalyzer(btay.TimeReturn, _name="TR")
         self.__cerebro.addanalyzer(btay.TimeReturn, _name="TR_Bench", data=self.__benchFeed)
         self.__cerebro.addanalyzer(btay.SQN, _name="SQN")
+        # self.__cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='_TimeReturn')
 
     # 建立数据源
     def _createDataFeeds(self):
@@ -200,56 +223,118 @@ class BackTest:
         trade_info = self.__results[0].analyzers.TA.get_analysis()
         self._winInfo(trade_info, self.__backtestResult)
 
+    def show_1(self):
+        # 按年统计收益指标
+        pnl = self.__returns
+        # 计算累计收益
+        cumulative = (pnl + 1).cumprod()
+        # 计算回撤序列
+        max_return = cumulative.cummax()
+        drawdown = (cumulative - max_return) / max_return
+
+        # 计算收益评价指标
+        perf_stats_year = (pnl).groupby(pnl.index.to_period('y')).apply(
+            lambda data: pf.timeseries.perf_stats(data)).unstack()
+        # 统计所有时间段的收益指标
+        perf_stats_all = pf.timeseries.perf_stats((pnl)).to_frame(name='all')
+        perf_stats = pd.concat([perf_stats_year, perf_stats_all.T], axis=0)
+        perf_stats_ = round(perf_stats, 4).reset_index()
+
+        # 绘制图形
+
+        plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+        import matplotlib.ticker as ticker  # 导入设置坐标轴的模块
+        # plt.style.use('seaborn')
+        plt.style.use('dark_background')
+
+        fig, (ax0, ax1) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1.5, 4]}, figsize=(20, 8))
+        cols_names = ['date', 'Annual\nreturn', 'Cumulative\nreturns', 'Annual\nvolatility',
+                      'Sharpe\nratio', 'Calmar\nratio', 'Stability', 'Max\ndrawdown',
+                      'Omega\nratio', 'Sortino\nratio', 'Skew', 'Kurtosis', 'Tail\nratio',
+                      'Daily value\nat risk']
+
+        # 绘制表格
+        ax0.set_axis_off()  # 除去坐标轴
+        table = ax0.table(cellText=perf_stats_.values,
+                          bbox=(0, 0, 1, 1),  # 设置表格位置， (x0, y0, width, height)
+                          rowLoc='right',  # 行标题居中
+                          cellLoc='right',
+                          colLabels=cols_names,  # 设置列标题
+                          colLoc='right',  # 列标题居中
+                          edges='open'  # 不显示表格边框
+                          )
+        table.set_fontsize(13)
+
+        # 绘制累计收益曲线
+        ax2 = ax1.twinx()
+        ax1.yaxis.set_ticks_position('right')  # 将回撤曲线的 y 轴移至右侧
+        ax2.yaxis.set_ticks_position('left')  # 将累计收益曲线的 y 轴移至左侧
+        # 绘制回撤曲线
+        drawdown.plot.area(ax=ax1, label='drawdown (right)', rot=0, alpha=0.3, fontsize=13, grid=False)
+        # 绘制累计收益曲线
+        (cumulative).plot(ax=ax2, color='#F1C40F', lw=3.0, label='cumret (left)', rot=0, fontsize=13, grid=False)
+        # 不然 x 轴留有空白
+        ax2.set_xbound(lower=cumulative.index.min(), upper=cumulative.index.max())
+        # 主轴定位器：每 5 个月显示一个日期：根据具体天数来做排版
+        ax2.xaxis.set_major_locator(ticker.MultipleLocator(100))
+        # 同时绘制双轴的图例
+        h1, l1 = ax1.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        plt.legend(h1 + h2, l1 + l2, fontsize=12, loc='upper left', ncol=1)
+
+        fig.tight_layout()  # 规整排版
+        plt.show()
+
     # 取得优化参数时的指标结果
-    def _getOptAnalysis(self, result):
-        temp = dict()
-        temp["总收益率"] = result[0].analyzers.RE.get_analysis()["rtot"]
-        temp["年化收益率"] = result[0].analyzers.RE.get_analysis()["rnorm"]
-        temp["夏普比率"] = result[0].analyzers.sharpe.get_analysis()["sharperatio"]
-        temp["最大回撤"] = result[0].analyzers.DD.get_analysis().max.drawdown
-        temp["最大回撤期间"] = result[0].analyzers.DD.get_analysis().max.len
-        sqn = result[0].analyzers.SQN.get_analysis()["sqn"]
-        temp["SQN"] = sqn
-        temp["策略评价(根据SQN)"] = self._judgeBySQN(sqn)
-        trade_info = self.__results[0].analyzers.TA.get_analysis()
-        self._winInfo(trade_info, temp)
-        return temp
+    # def _getOptAnalysis(self, result):
+    #     temp = dict()
+    #     temp["总收益率"] = result[0].analyzers.RE.get_analysis()["rtot"]
+    #     temp["年化收益率"] = result[0].analyzers.RE.get_analysis()["rnorm"]
+    #     temp["夏普比率"] = result[0].analyzers.sharpe.get_analysis()["sharperatio"]
+    #     temp["最大回撤"] = result[0].analyzers.DD.get_analysis().max.drawdown
+    #     temp["最大回撤期间"] = result[0].analyzers.DD.get_analysis().max.len
+    #     sqn = result[0].analyzers.SQN.get_analysis()["sqn"]
+    #     temp["SQN"] = sqn
+    #     temp["策略评价(根据SQN)"] = self._judgeBySQN(sqn)
+    #     trade_info = self.__results[0].analyzers.TA.get_analysis()
+    #     self._winInfo(trade_info, temp)
+    #     return temp
 
     # 在优化多个参数时计算并保存回测结果
-    def _optResultMore(self, results, **kwargs):
-        testResults = pd.DataFrame()
-        i = 0
-        for key in kwargs:
-            for value in kwargs[key]:
-                temp = self._getOptAnalysis(results[i])
-                temp["参数名"] = key
-                temp["参数值"] = value
-                returns = self._timeReturns(results[i])
-                benchReturns = self._getBenchmarkReturns(results[i])
-                self._riskAnaly(returns, benchReturns, temp)
-                testResults = testResults.append(temp, ignore_index=True)
-            # testResults.set_index(["参数值"], inplace = True)
-        return testResults
+    # def _optResultMore(self, results, **kwargs):
+    #     testResults = pd.DataFrame()
+    #     i = 0
+    #     for key in kwargs:
+    #         for value in kwargs[key]:
+    #             temp = self._getOptAnalysis(results[i])
+    #             temp["参数名"] = key
+    #             temp["参数值"] = value
+    #             returns = self._timeReturns(results[i])
+    #             benchReturns = self._getBenchmarkReturns(results[i])
+    #             self._riskAnaly(returns, benchReturns, temp)
+    #             testResults = testResults.append(temp, ignore_index=True)
+    #         # testResults.set_index(["参数值"], inplace = True)
+    #     return testResults
 
     # 在优化参数时计算并保存回测结果
-    def _optResult(self, results, **kwargs):
-        testResults = pd.DataFrame()
-        params = []
-        for k, v in kwargs.items():
-            for t in v:
-                params.append(t)
-        i = 0
-        for result in results:
-            temp = self._getOptAnalysis(result)
-            temp["参数名"] = k
-            temp["参数值"] = params[i]
-            i += 1
-            returns = self._timeReturns(result)
-            benchReturns = self._getBenchmarkReturns(result)
-            self._riskAnaly(returns, benchReturns, temp)
-            testResults = testResults.append(temp, ignore_index=True)
-        # testResults.set_index(["参数值"], inplace = True)
-        return testResults
+    # def _optResult(self, results, **kwargs):
+    #     testResults = pd.DataFrame()
+    #     params = []
+    #     for k, v in kwargs.items():
+    #         for t in v:
+    #             params.append(t)
+    #     i = 0
+    #     for result in results:
+    #         temp = self._getOptAnalysis(result)
+    #         temp["参数名"] = k
+    #         temp["参数值"] = params[i]
+    #         i += 1
+    #         returns = self._timeReturns(result)
+    #         benchReturns = self._getBenchmarkReturns(result)
+    #         self._riskAnaly(returns, benchReturns, temp)
+    #         testResults = testResults.append(temp, ignore_index=True)
+    #     # testResults.set_index(["参数值"], inplace = True)
+    #     return testResults
 
     # 计算收益率序列
     def _timeReturns(self, result):
@@ -274,31 +359,31 @@ class BackTest:
 
     # 回测结果绘图
     def _drawResult(self):
-        self.__cerebro.plot(numfigs=2)
+        self.__cerebro.plot(numfigs=1)
         figname = type(self).__name__ + ".png"
         plt.savefig(figname)
 
-    # 获取数据
     def _getData(self, code):
-        _data_root = r'D:\code\pycharm\test\grid-trading-system\mnt\data'
-        file_name = '300363.xlsx'
+        _data_root = r'D:\code\pycharm\test\grid-trading-system\my_grid'
+        file_name = 'sz.300363_60_2023-01-01.csv'
         data_path = os.path.join(_data_root, file_name)
         print(f'data_path is {data_path}')
 
-        df = pd.read_excel(data_path, header=2).rename(columns=lambda x: x.strip())
-        # 调整数据clumns，且按照时间升序
-        #       时间	    开盘	    最高	    最低	    收盘	         成交量
+        df = pd.read_csv(data_path).rename(columns=lambda x: x.strip())
         df['openinterest'] = 0  # 添加一列数据
         # data = df.loc[:, ['open', 'high', 'low', 'close', 'vol', 'openinterest', 'trade_date']]  # 选择需要的数据
         # df = df.loc[2:]
-        data = df.loc[:, ['时间', '开盘', '最高', '最低', '收盘', '成交量', 'openinterest']]  # 选择需要的数据
+        data = df.loc[:, ['time', 'open', 'high', 'low', 'close', 'amount', 'openinterest']]  # 选择需要的数据
         data.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest']  # 修改列名
         data = data.set_index(
-            pd.to_datetime(data['datetime'].astype('str'), errors='coerce')).sort_index()  # 把datetime列改为时间格式并排序
+            pd.to_datetime(
+                data['datetime'],
+                format='%Y%m%d%H%M%S%f'
+                , errors='coerce')).sort_index()  # 把datetime列改为时间格式并排序
         # 这个数据是整理过的，实际操作中可能会有一下缺失数据，所以需要做一下填充。
-        data.loc[:, ['volume', 'openinterest']] = data.loc[:, ['volume', 'openinterest']].fillna(0)
-        data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].fillna(
-            method='pad')
+        # data.loc[:, ['volume', 'openinterest']] = data.loc[:, ['volume', 'openinterest']].ffill(0)
+        # data.loc[:, ['open', 'high', 'low', 'close']] = data.loc[:, ['open', 'high', 'low', 'close']].ffill(
+        #     method='pad')
         # data.loc[:, ['volume']] = data.loc[:, ['volume']] * 1000
         # filename = code + ".csv"
         # path = "./data/"
@@ -376,99 +461,99 @@ class riskAnalyzer:
 
 
 # 测试函数
-def test():
-    # 构造测试数据
-    returns = pd.Series(
-        index=pd.date_range("2017-03-10", "2017-03-19"),
-        data=(-0.012143, 0.045350, 0.030957, 0.004902, 0.002341, -0.02103, 0.00148, 0.004820, -0.00023, 0.01201))
-    print(returns)
-    benchmark_returns = pd.Series(
-        index=pd.date_range("2017-03-10", "2017-03-19"),
-        data=(-0.031940, 0.025350, -0.020957, -0.000902, 0.007341, -0.01103, 0.00248, 0.008820, -0.00123, 0.01091))
-    print(benchmark_returns)
-    # 计算累积收益率
-    creturns = ey.cum_returns(returns)
-    print("累积收益率\n", creturns)
-    risk = riskAnalyzer(returns, benchmark_returns, riskFreeRate=0.01)
-    results = risk.run()
-    print(results)
-    # 直接调用empyrical试试
-    alpha = ey.alpha(returns=returns, factor_returns=benchmark_returns, risk_free=0.01)
-    calmar = ey.calmar_ratio(returns)
-    print(alpha, calmar)
-    # 自己计算阿尔法值
-    annual_return = ey.annual_return(returns)
-    annual_bench = ey.annual_return(benchmark_returns)
-    print(annual_return, annual_bench)
-    alpha2 = (annual_return - 0.01) - results["贝塔"] * (annual_bench - 0.01)
-    print(alpha2)
-
-    # 自己计算阿尔法贝塔
-    def get_return(code, startdate, endate):
-        df = ts.get_k_data(code, ktype="D", autype="qfq", start=startdate, end=endate)
-        p1 = np.array(df.close[1:])
-        p0 = np.array(df.close[:-1])
-        logret = np.log(p1 / p0)
-        rate = pd.DataFrame()
-        rate[code] = logret
-        rate.index = df["date"][1:]
-        return rate
-
-    def alpha_beta(code, startdate, endate):
-        mkt_ret = get_return("sh", startdate, endate)
-        stock_ret = get_return(code, startdate, endate)
-        df = pd.merge(mkt_ret, stock_ret, left_index=True, right_index=True)
-        x = df.iloc[:, 0]
-        y = df.iloc[:, 1]
-        beta, alpha, r_value, p_value, std_err = stats.linregress(x, y)
-        return (alpha, beta)
-
-    def stocks_alpha_beta(stocks, startdate, endate):
-        df = pd.DataFrame()
-        alpha = []
-        beta = []
-        for code in stocks.values():
-            a, b = alpha_beta(code, startdate, endate)
-            alpha.append(float("%.4f" % a))
-            beta.append(float("%.4f" % b))
-        df["alpha"] = alpha
-        df["beta"] = beta
-        df.index = stocks.keys()
-        return df
-
-    startdate = "2017-01-01"
-    endate = "2018-11-09"
-    stocks = {'中国平安': '601318', '格力电器': '000651', '招商银行': '600036', '恒生电子': '600570',
-              '中信证券': '600030',
-              '贵州茅台': '600519'}
-    results = stocks_alpha_beta(stocks, startdate, endate)
-    print("自己计算结果")
-    print(results)
-
-    # 用empyrical计算
-    def stocks_alpha_beta2(stocks, startdate, endate):
-        df = pd.DataFrame()
-        alpha = []
-        beta = []
-        for code in stocks.values():
-            a, b = empyrical_alpha_beta(code, startdate, endate)
-            alpha.append(float("%.4f" % a))
-            beta.append(float("%.4f" % b))
-        df["alpha"] = alpha
-        df["beta"] = beta
-        df.index = stocks.keys()
-        return df
-
-    def empyrical_alpha_beta(code, startdate, endate):
-        mkt_ret = get_return("sh", startdate, endate)
-        stock_ret = get_return(code, startdate, endate)
-        alpha, beta = ey.alpha_beta(returns=stock_ret, factor_returns=mkt_ret, annualization=1)
-        return (alpha, beta)
-
-    results2 = stocks_alpha_beta2(stocks, startdate, endate)
-    print("empyrical计算结果")
-    print(results2)
-    print(results2["alpha"] / results["alpha"])
+# def test():
+#     # 构造测试数据
+#     returns = pd.Series(
+#         index=pd.date_range("2017-03-10", "2017-03-19"),
+#         data=(-0.012143, 0.045350, 0.030957, 0.004902, 0.002341, -0.02103, 0.00148, 0.004820, -0.00023, 0.01201))
+#     print(returns)
+#     benchmark_returns = pd.Series(
+#         index=pd.date_range("2017-03-10", "2017-03-19"),
+#         data=(-0.031940, 0.025350, -0.020957, -0.000902, 0.007341, -0.01103, 0.00248, 0.008820, -0.00123, 0.01091))
+#     print(benchmark_returns)
+#     # 计算累积收益率
+#     creturns = ey.cum_returns(returns)
+#     print("累积收益率\n", creturns)
+#     risk = riskAnalyzer(returns, benchmark_returns, riskFreeRate=0.01)
+#     results = risk.run()
+#     print(results)
+#     # 直接调用empyrical试试
+#     alpha = ey.alpha(returns=returns, factor_returns=benchmark_returns, risk_free=0.01)
+#     calmar = ey.calmar_ratio(returns)
+#     print(alpha, calmar)
+#     # 自己计算阿尔法值
+#     annual_return = ey.annual_return(returns)
+#     annual_bench = ey.annual_return(benchmark_returns)
+#     print(annual_return, annual_bench)
+#     alpha2 = (annual_return - 0.01) - results["贝塔"] * (annual_bench - 0.01)
+#     print(alpha2)
+#
+#     # 自己计算阿尔法贝塔
+#     def get_return(code, startdate, endate):
+#         df = ts.get_k_data(code, ktype="D", autype="qfq", start=startdate, end=endate)
+#         p1 = np.array(df.close[1:])
+#         p0 = np.array(df.close[:-1])
+#         logret = np.log(p1 / p0)
+#         rate = pd.DataFrame()
+#         rate[code] = logret
+#         rate.index = df["date"][1:]
+#         return rate
+#
+#     def alpha_beta(code, startdate, endate):
+#         mkt_ret = get_return("sh", startdate, endate)
+#         stock_ret = get_return(code, startdate, endate)
+#         df = pd.merge(mkt_ret, stock_ret, left_index=True, right_index=True)
+#         x = df.iloc[:, 0]
+#         y = df.iloc[:, 1]
+#         beta, alpha, r_value, p_value, std_err = stats.linregress(x, y)
+#         return (alpha, beta)
+#
+#     def stocks_alpha_beta(stocks, startdate, endate):
+#         df = pd.DataFrame()
+#         alpha = []
+#         beta = []
+#         for code in stocks.values():
+#             a, b = alpha_beta(code, startdate, endate)
+#             alpha.append(float("%.4f" % a))
+#             beta.append(float("%.4f" % b))
+#         df["alpha"] = alpha
+#         df["beta"] = beta
+#         df.index = stocks.keys()
+#         return df
+#
+#     startdate = "2017-01-01"
+#     endate = "2018-11-09"
+#     stocks = {'中国平安': '601318', '格力电器': '000651', '招商银行': '600036', '恒生电子': '600570',
+#               '中信证券': '600030',
+#               '贵州茅台': '600519'}
+#     results = stocks_alpha_beta(stocks, startdate, endate)
+#     print("自己计算结果")
+#     print(results)
+#
+#     # 用empyrical计算
+#     def stocks_alpha_beta2(stocks, startdate, endate):
+#         df = pd.DataFrame()
+#         alpha = []
+#         beta = []
+#         for code in stocks.values():
+#             a, b = empyrical_alpha_beta(code, startdate, endate)
+#             alpha.append(float("%.4f" % a))
+#             beta.append(float("%.4f" % b))
+#         df["alpha"] = alpha
+#         df["beta"] = beta
+#         df.index = stocks.keys()
+#         return df
+#
+#     def empyrical_alpha_beta(code, startdate, endate):
+#         mkt_ret = get_return("sh", startdate, endate)
+#         stock_ret = get_return(code, startdate, endate)
+#         alpha, beta = ey.alpha_beta(returns=stock_ret, factor_returns=mkt_ret, annualization=1)
+#         return (alpha, beta)
+#
+#     results2 = stocks_alpha_beta2(stocks, startdate, endate)
+#     print("empyrical计算结果")
+#     print(results2)
+#     print(results2["alpha"] / results["alpha"])
 
 
 # 测试夏普值的计算
