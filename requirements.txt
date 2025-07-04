@@ -13,4 +13,8 @@ efinance
 empyrical
 tushare
 fastapi[all]
+scikit-learn
+fastapi[all]
 baostock
+seaborn
+pyfolio
