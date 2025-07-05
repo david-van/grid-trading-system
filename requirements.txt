@@ -18,3 +18,4 @@ fastapi[all]
 baostock
 seaborn
 pyfolio
+quantstats

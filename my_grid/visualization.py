@@ -3,15 +3,17 @@
 # @Date    : 2025/7/5 14:17
 # @Author  : david_van
 # @Desc    :
+import backtrader as bt
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import pandas as pd
 import pyfolio as pf
-import matplotlib.ticker as ticker
-import backtrader as bt
-
+import quantstats as qs
 # 正常显示画图时出现的中文和负号
 from pylab import mpl
+
 mpl.rcParams['font.sans-serif'] = ['SimHei']
+
 
 class PerformanceVisualizer:
     """
@@ -87,3 +89,26 @@ class PerformanceVisualizer:
     def draw_result(cerebro: bt.Cerebro) -> None:
         cerebro.plot(numfigs=1)
         plt.savefig(f"result.png")
+
+    @classmethod
+    def show_by_pyfolio(cls, pyfoliozer: bt.analyzers.PyFolio):
+        returns, positions, transactions, glev = pyfoliozer.get_pf_items()
+        # 强制转换类型
+        # print(f'returns type is {type(returns)}')
+        # print(f'returns.head() = \n{returns.head()}')
+        # print(f'returns.empty = {returns.empty}')
+        # print(f'returns.index = {returns.index}')
+        #
+        # if not isinstance(returns, pd.Series):
+        #     print(f'returns is {returns}')
+        #     returns = pd.Series(returns)
+        # returns.index = returns.index.tz_convert(None)
+        # 显式转换 returns 为标准 Series，并重置索引以避免潜在问题
+        # returns = pd.Series(returns.values, index=returns.index)
+        #
+        # # 或者强制转换为 DataFrame 再处理
+        # returns_df = pd.DataFrame({'return': returns})
+        # returns = returns.tz_convert(None)
+        # 基础报告（HTML格式）
+        qs.reports.html(returns, output='quantstats_report.html', title='策略绩效')
+        # qs.reports.basic(returns)

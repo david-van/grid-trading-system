@@ -36,48 +36,37 @@ class BackTest:
 
     # 执行回测
     def run(self):
-        self._backtest_summary["期初账户总值"] = self.getValue()
-        self._raw_result = self._cerebro.run()
+        self._backtest_summary["期初账户总值"] = self.get_value()
+        self._raw_result = self._cerebro.run(stdstats=False)
         self.populate_summary()
         #  计算风险汇报
         self._risk_analyze()
         if self.__config.draw_plot:
-            PerformanceVisualizer.draw_result(self._cerebro)
-            PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
+            # PerformanceVisualizer.draw_result(self._cerebro)
+            # PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
+            pyfoliozer = self._raw_result[0].analyzers.getbyname('pyfolio')
+
+            PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
         return self._backtest_summary
 
-    # 获取账户总价值
-    def getValue(self):
-        return self._cerebro.broker.getvalue()
-
-    # 获取策略及基准策略收益率的序列
-    # def getReturns(self):
-    #     return self._strategy_returns, self._benchmark_returns
-
-    # 执行参数优化的回测
-    # def optRun(self, *args, **kwargs):
-    #     self._optStrategy(*args, **kwargs)
-    #     results = self.__cerebro.run()
-    #     if len(kwargs) == 1:
-    #         testResults = self._optResult(results, **kwargs)
-    #     elif len(kwargs) > 1:
-    #         testResults = self._optResultMore(results, **kwargs)
-    #     self._init()
-    #     return testResults
-
-    # 进行参数优化
-    def _optStrategy(self, *args, **kwargs):
-        self._cerebro = bt.Cerebro(maxcpus=1)
-        self._cerebro.optstrategy(self.__config.strategy, *args, **kwargs)
-        self._get_data_feeds()
-        self._config_cerebro()
-
-    # 设置cerebro
     def _config_cerebro(self):
+        # cerebro = bt.Cerebro() #默认参数: stdstats=True
+        # cerebro.addobserver(bt.observers.Broker)
+        # cerebro.addobserver(bt.observers.Trades)
+        # cerebro.addobserver(bt.observers.BuySell)
+        # | Observer    | 功能             | 图表表现        |
+        # | ----------- | -------------- | ----------- |
+        # | **Broker**  | 追踪现金与账户净值      | 折线图/子图      |
+        # | **Trades**  | 记录每笔交易的盈亏      | 盈亏标注、子图或图点  |
+        # | **BuySell** | 标记所有成交的买入/卖出时点 | 箭头/点状显示在主图上 |
+
+        self._cerebro.addobserver(bt.observers.Broker)
+        self._cerebro.addobserver(bt.observers.BuySell)
         # 添加回撤观察器
         self._cerebro.addobserver(bt.observers.DrawDown)
+        # 移除trade
         # 添加基准观察器
-        self._cerebro.addobserver(bt.observers.Benchmark, data=self._benchFeed, timeframe=bt.TimeFrame.NoTimeFrame)
+        # self._cerebro.addobserver(bt.observers.Benchmark, data=self._benchFeed, timeframe=bt.TimeFrame.NoTimeFrame)
         # 设置手续费
         self._cerebro.broker.addcommissioninfo(StockCommission())
 
@@ -98,7 +87,10 @@ class BackTest:
         self._cerebro.addanalyzer(btay.TimeReturn, _name="TR_Bench", data=self._benchFeed)
         self._cerebro.addanalyzer(btay.SQN, _name="SQN")
         # self.__cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='_TimeReturn')
+        self._cerebro.addanalyzer(bt.analyzers.PyFolio, _name='pyfolio')
 
+    def get_value(self):
+        return self._cerebro.broker.get_value()
     # 建立数据源
     def _get_data_feeds(self):
         # 建立回测数据源
@@ -109,15 +101,15 @@ class BackTest:
             dataFeed = bt.feeds.PandasData(dataname=dataFeed, name=self.__config.name[i])
             self._cerebro.adddata(dataFeed, name=self.__config.name[i])
             #  todo benchMark 待处理
-            self._cerebro.adddata(dataFeed, name="benchMark")
+            # self._cerebro.adddata(dataFeed, name="benchMark")
 
     # 计算并保存回测结果指标
     def populate_summary(self):
-        self._backtest_summary["期末账户总值"] = self.getValue()
-        self._backtest_summary["账户总额"] = self.getValue()
+        self._backtest_summary["期末账户总值"] = self.get_value()
+        self._backtest_summary["账户总额"] = self.get_value()
         self._backtest_summary["总收益率"] = self._raw_result[0].analyzers.RE.get_analysis()["rtot"]
         self._backtest_summary["年化收益率"] = self._raw_result[0].analyzers.RE.get_analysis()["rnorm"]
-        self._backtest_summary["年化收益率2"] = self._raw_result[0].analyzers.AR.get_analysis()
+        self._backtest_summary["每年年化收益率"] = self._raw_result[0].analyzers.AR.get_analysis()
         # self.__backtestResult["交易成本"] = self.__cerebro.strats[0].getCommission()
         self._backtest_summary["夏普比率"] = self._raw_result[0].analyzers.sharpe.get_analysis()["sharperatio"]
         self._backtest_summary["最大回撤"] = self._raw_result[0].analyzers.DD.get_analysis().max.drawdown
@@ -204,3 +196,24 @@ class BackTest:
     #         testResults = testResults.append(temp, ignore_index=True)
     #     # testResults.set_index(["参数值"], inplace = True)
     #     return testResults
+    # 获取策略及基准策略收益率的序列
+    # def getReturns(self):
+    #     return self._strategy_returns, self._benchmark_returns
+
+    # 执行参数优化的回测
+    # def optRun(self, *args, **kwargs):
+    #     self._optStrategy(*args, **kwargs)
+    #     results = self.__cerebro.run()
+    #     if len(kwargs) == 1:
+    #         testResults = self._optResult(results, **kwargs)
+    #     elif len(kwargs) > 1:
+    #         testResults = self._optResultMore(results, **kwargs)
+    #     self._init()
+    #     return testResults
+
+    # 进行参数优化
+    # def _optStrategy(self, *args, **kwargs):
+    #     self._cerebro = bt.Cerebro(maxcpus=1)
+    #     self._cerebro.optstrategy(self.__config.strategy, *args, **kwargs)
+    #     self._get_data_feeds()
+    #     self._config_cerebro()
