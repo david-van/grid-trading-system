@@ -11,7 +11,8 @@ class GridStrategy(bt.Strategy):
     )
 
     def __init__(self):
-        print(f'params is {self.p}')
+        params_dict = dict(self.p._getkwargs())
+        print(f'params is {params_dict}')
         # self.mid = (self.p.top + self.p.buttom) / 2.0
         # # 百分比区间计算
         # # 这里多1/2，是因为arange函数是左闭右开区间。
@@ -53,7 +54,7 @@ class GridStrategy(bt.Strategy):
         # 调仓
         else:
             signal = False
-            buy = False
+            buy_index = 0
             while True:
                 upper = None
                 lower = None
@@ -108,13 +109,27 @@ class GridStrategy(bt.Strategy):
                      order.executed.value,
                      order.executed.pnl,
                      order.executed.comm))
+            else:
+                self.log(f'error:存在未知的情况')
 
             self.comm += order.executed.comm
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log("交易失败")
+            # todo 优化此处的代码
+            # self.log("交易失败，回滚索引位")
+            # 回滚索引
+            if order.executed.remsize is not None:
+                count = int(order.executed.remsize / 200)
+                if order.isbuy():
+                    self.last_price_index = self.last_price_index - count
+                elif order.issell():
+                    self.last_price_index = self.last_price_index + count
+                else:
+                    self.log(f'error:存在未知的情况')
+            else:
+                self.log(f'error:存在获取不到买入/卖出数量的情况')
             self.order = None
         else:
-            self.log("未知状态交易失败")
+            self.log("error:未知状态交易失败")
             self.order = None
 
     # 输出手续费

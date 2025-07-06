@@ -87,8 +87,17 @@ class PerformanceVisualizer:
 
     @staticmethod
     def draw_result(cerebro: bt.Cerebro) -> None:
-        cerebro.plot(numfigs=1)
-        plt.savefig(f"result.png")
+        cerebro.plot(numfigs=1, volume=False,
+                     # style='candlestick',  # 关键！蜡烛图样式才会显示时间轴
+                     # tickmarks=True,  # 强制显示所有刻度
+                     # locator=MonthLocator(interval=1),  # 每月显示一个刻度
+                     # formatter=DateFormatter('%Y-%m'),  # 显示年月格式
+                     )
+        # plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%Y-%m'))
+        # print("show pic")
+        # plt.show()
+        # print("savefig pic")
+        # plt.savefig(f"result.png")
 
     @classmethod
     def show_by_pyfolio(cls, pyfoliozer: bt.analyzers.PyFolio):

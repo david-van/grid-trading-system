@@ -42,10 +42,10 @@ class BackTest:
         #  计算风险汇报
         self._risk_analyze()
         if self.__config.draw_plot:
-            # PerformanceVisualizer.draw_result(self._cerebro)
+            PerformanceVisualizer.draw_result(self._cerebro)
             # PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
-            pyfoliozer = self._raw_result[0].analyzers.getbyname('pyfolio')
-            PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
+            # pyfoliozer = self._raw_result[0].analyzers.getbyname('PyFolio')
+            # PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
 
         return self._backtest_summary
 
@@ -77,7 +77,7 @@ class BackTest:
             # if self.__config.draw_plot:
             # PerformanceVisualizer.draw_result(self._cerebro)
             # PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
-            # pyfoliozer = self._raw_result[0].analyzers.getbyname('pyfolio')
+            # pyfoliozer = self._raw_result[0].analyzers.getbyname('PyFolio')
             # PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
             map_summary.update(self._backtest_summary.to_dict())
             records.append(map_summary)
@@ -118,17 +118,17 @@ class BackTest:
         # 设置初始资金
         self._cerebro.broker.setcash(self.__config.cash)
         # 添加分析对象
-        self._cerebro.addanalyzer(btay.SharpeRatio, _name="sharpe", riskfreerate=0.02, stddev_sample=True,
+        self._cerebro.addanalyzer(btay.SharpeRatio, _name="SharpeRatio", riskfreerate=0.02, stddev_sample=True,
                                   annualize=True)
-        self._cerebro.addanalyzer(btay.AnnualReturn, _name="AR")
-        self._cerebro.addanalyzer(btay.DrawDown, _name="DD")
-        self._cerebro.addanalyzer(btay.Returns, _name="RE")
-        self._cerebro.addanalyzer(btay.TradeAnalyzer, _name="TA")
-        self._cerebro.addanalyzer(btay.TimeReturn, _name="TR")
-        self._cerebro.addanalyzer(btay.TimeReturn, _name="TR_Bench", data=self._benchFeed)
+        self._cerebro.addanalyzer(btay.AnnualReturn, _name="AnnualReturn")
+        self._cerebro.addanalyzer(btay.DrawDown, _name="DrawDown")
+        self._cerebro.addanalyzer(btay.Returns, _name="Returns")
+        self._cerebro.addanalyzer(btay.TradeAnalyzer, _name="TradeAnalyzer")
+        self._cerebro.addanalyzer(btay.TimeReturn, _name="TimeReturn")
+        self._cerebro.addanalyzer(btay.TimeReturn, _name="TimeReturn_Bench", data=self._benchFeed)
         self._cerebro.addanalyzer(btay.SQN, _name="SQN")
         # self.__cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='_TimeReturn')
-        self._cerebro.addanalyzer(bt.analyzers.PyFolio, _name='pyfolio')
+        self._cerebro.addanalyzer(bt.analyzers.PyFolio, _name='PyFolio')
 
     def get_value(self):
         return self._cerebro.broker.get_value()
@@ -149,13 +149,14 @@ class BackTest:
     def populate_summary(self):
         self._backtest_summary["期末账户总值"] = self.get_value()
         self._backtest_summary["账户总额"] = self.get_value()
-        self._backtest_summary["总收益率"] = self._raw_result[0].analyzers.RE.get_analysis()["rtot"]
-        self._backtest_summary["年化收益率"] = self._raw_result[0].analyzers.RE.get_analysis()["rnorm"]
-        self._backtest_summary["每年年化收益率"] = self._raw_result[0].analyzers.AR.get_analysis()
+        self._backtest_summary["总收益率"] = self._raw_result[0].analyzers.Returns.get_analysis()["rtot"]
+        self._backtest_summary["年化收益率"] = self._raw_result[0].analyzers.Returns.get_analysis()["rnorm"]
+        self._backtest_summary["每年年化收益率"] = self._raw_result[0].analyzers.AnnualReturn.get_analysis()
         # self.__backtestResult["交易成本"] = self.__cerebro.strats[0].getCommission()
-        self._backtest_summary["夏普比率"] = self._raw_result[0].analyzers.sharpe.get_analysis()["sharperatio"]
-        self._backtest_summary["最大回撤"] = self._raw_result[0].analyzers.DD.get_analysis().max.drawdown
-        self._backtest_summary["最大回撤期间"] = self._raw_result[0].analyzers.DD.get_analysis().max.len
+        self._backtest_summary["夏普比率"] = self._raw_result[0].analyzers.SharpeRatio.get_analysis()["sharperatio"]
+        self._backtest_summary["最大回撤"] = self._raw_result[0].analyzers.DrawDown.get_analysis().max.drawdown
+        # 当前采用的是小时数据，所以除以4
+        self._backtest_summary["最大回撤期间"] = self._raw_result[0].analyzers.DrawDown.get_analysis().max.len // 4
         self._backtest_summary["SQN"] = self._raw_result[0].analyzers.SQN.get_analysis()["sqn"]
         self._backtest_summary["策略评价(根据SQN)"] = IndicatorAnalyzer.judge_by_SQN(self._backtest_summary["SQN"])
 
@@ -164,7 +165,7 @@ class BackTest:
 
     # 计算胜率信息
     def _calc_win_info(self, result):
-        trade_info = self._raw_result[0].analyzers.TA.get_analysis()
+        trade_info = self._raw_result[0].analyzers.TradeAnalyzer.get_analysis()
         total_trade_num = trade_info["total"]["total"]
         if total_trade_num > 1:
             win_num = trade_info["won"]["total"]
@@ -174,11 +175,11 @@ class BackTest:
             result["败率"] = lost_num / total_trade_num
 
     def _get_strategy_returns(self, result):
-        return pd.Series(result[0].analyzers.TR.get_analysis())
+        return pd.Series(result[0].analyzers.TimeReturn.get_analysis())
 
     # 运行基准策略，获取基准收益值
     def _get_benchmark_returns(self, result):
-        return pd.Series(result[0].analyzers.TR_Bench.get_analysis())
+        return pd.Series(result[0].analyzers.TimeReturn_Bench.get_analysis())
 
     # 分析策略的风险指标
     def _risk_analyze(self) -> None:

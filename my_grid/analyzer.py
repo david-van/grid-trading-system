@@ -5,6 +5,7 @@
 # @Desc    : 该类用于计算和分析投资策略的风险指标
 
 import empyrical as ey
+import numpy as np
 import pandas as pd
 
 
@@ -39,17 +40,17 @@ class RiskAnalyzer:
         - pd.Series, 包含所有风险指标的Series
         """
         # 计算各指标
-        self._alpha_beta()
-        self._info()
+        # self._alpha_beta()
+        # self._info()
         self._vola()
         self._omega()
         self._sharpe()
         self._sortino()
         self._calmar()
         result_dict = {
-            "阿尔法": self.__alpha,
-            "贝塔": self.__beta,
-            "信息比例": self.__info,
+            # "阿尔法": self.__alpha,
+            # "贝塔": self.__beta,
+            # "信息比例": self.__info,
             "策略波动率": self.__vola,
             "欧米伽": self.__omega,
             "夏普值": self.__sharpe,
@@ -105,7 +106,10 @@ class RiskAnalyzer:
 
         索提诺比率衡量的是投资策略每承受一单位下行风险，能产生的超额回报。
         """
-        self.__sortino = ey.sortino_ratio(returns=self.__returns, annualization=self.__risk_free)
+        self.__sortino = ey.sortino_ratio(returns=self.__returns,
+                                          required_return=self.__risk_free/252,  # 才是目标回报率
+                                          # annualization=252  # 日频数据常用252天进行年化
+                                          )
 
     def _calmar(self):
         """
