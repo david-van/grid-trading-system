@@ -5,11 +5,13 @@ import backtrader as bt
 class GridStrategy(bt.Strategy):
     params = (
         ("printlog", True),
-        ("top", 20),
-        ("buttom", 10),
+        ("top", None),
+        ("buttom", None),
+        ("step_percent", None),
     )
 
     def __init__(self):
+        print(f'params is {self.p}')
         # self.mid = (self.p.top + self.p.buttom) / 2.0
         # # 百分比区间计算
         # # 这里多1/2，是因为arange函数是左闭右开区间。
@@ -20,12 +22,11 @@ class GridStrategy(bt.Strategy):
         # # print(self.mid)
         # self.price_levels = [self.mid * x for x in perc_level]
         grid_prices = []
-        step_percent = 0.1
 
         current_price = self.p.top
         while current_price >= self.p.buttom:
             grid_prices.append(current_price)
-            current_price = round(current_price * (1 - step_percent), 2)
+            current_price = round(current_price * (1 - self.p.step_percent), 2)
         self.price_levels = grid_prices
         # 记录上一次穿越的网格
         self.last_price_index = None
@@ -102,9 +103,10 @@ class GridStrategy(bt.Strategy):
                 self.buyprice = order.executed.price
             elif order.issell():
                 self.log(
-                    f'执行卖出,时间为：{bt.num2date(order.executed.dt).isoformat()} 价格: %.2f, 成本: %.2f, 手续费 %.2f' %
+                    f'执行卖出,时间为：{bt.num2date(order.executed.dt).isoformat()} 价格: %.2f, 成本: %.2f,pnl: %.2f, 手续费 %.2f' %
                     (order.executed.price,
                      order.executed.value,
+                     order.executed.pnl,
                      order.executed.comm))
 
             self.comm += order.executed.comm

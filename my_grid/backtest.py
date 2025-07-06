@@ -23,7 +23,6 @@ class BackTest:
     def __init__(self, config: BackTestConfig):
         self.__config = config
         self._cerebro = bt.Cerebro()
-        self._cerebro.addstrategy(self.__config.strategy)
 
         self._raw_result = None
         self._backtest_summary = pd.Series()
@@ -37,6 +36,7 @@ class BackTest:
     # 执行回测
     def run(self):
         self._backtest_summary["期初账户总值"] = self.get_value()
+        self._cerebro.addstrategy(self.__config.strategy, **self.__config.grid_params)
         self._raw_result = self._cerebro.run(stdstats=False)
         self.populate_summary()
         #  计算风险汇报
@@ -45,9 +45,49 @@ class BackTest:
             # PerformanceVisualizer.draw_result(self._cerebro)
             # PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
             pyfoliozer = self._raw_result[0].analyzers.getbyname('pyfolio')
-
             PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
+
         return self._backtest_summary
+
+    def run_opt(self):
+        self._backtest_summary["期初账户总值"] = self.get_value()
+        # 遍历参数
+        self._cerebro.optstrategy(
+            self.__config.strategy,
+            **self.__config.grid_params)
+        results = self._cerebro.run(stdstats=False, optreturn=False)
+        records = []
+        print(f'results length is {len(results)}')
+        for run in results:
+            strat = run[0]
+            p = strat.params
+            # 数据重置
+            self._raw_result = run
+            self._backtest_summary = pd.Series()
+            self._strategy_returns = pd.Series()
+            self._benchmark_returns = pd.Series()
+            # self._benchFeed = None
+            self.populate_summary()
+            map_summary = {
+                'top': p.top, 'buttom': p.buttom,
+                'step_percent': p.step_percent
+            }
+            #  计算风险汇报
+            self._risk_analyze()
+            # if self.__config.draw_plot:
+            # PerformanceVisualizer.draw_result(self._cerebro)
+            # PerformanceVisualizer.plot_performance(self._get_strategy_returns(self._raw_result))
+            # pyfoliozer = self._raw_result[0].analyzers.getbyname('pyfolio')
+            # PerformanceVisualizer.show_by_pyfolio(pyfoliozer)
+            map_summary.update(self._backtest_summary.to_dict())
+            records.append(map_summary)
+        if self.__config.draw_plot:
+            PerformanceVisualizer.draw_result(self._cerebro)
+        # 将 records 转换为 DataFrame 并保存为 CSV
+        df_records = pd.DataFrame(records)
+        df_records.to_csv('grid_strategy_opt_results.csv', index=False, encoding='utf-8-sig')
+
+        return df_records
 
     def _config_cerebro(self):
         # cerebro = bt.Cerebro() #默认参数: stdstats=True
@@ -64,6 +104,7 @@ class BackTest:
         self._cerebro.addobserver(bt.observers.BuySell)
         # 添加回撤观察器
         self._cerebro.addobserver(bt.observers.DrawDown)
+        # self._cerebro.addobserver(bt.observers.Value)
         # 移除trade
         # 添加基准观察器
         # self._cerebro.addobserver(bt.observers.Benchmark, data=self._benchFeed, timeframe=bt.TimeFrame.NoTimeFrame)
@@ -91,6 +132,7 @@ class BackTest:
 
     def get_value(self):
         return self._cerebro.broker.get_value()
+
     # 建立数据源
     def _get_data_feeds(self):
         # 建立回测数据源
@@ -135,85 +177,13 @@ class BackTest:
         return pd.Series(result[0].analyzers.TR.get_analysis())
 
     # 运行基准策略，获取基准收益值
-    def _getBenchmarkReturns(self, result):
+    def _get_benchmark_returns(self, result):
         return pd.Series(result[0].analyzers.TR_Bench.get_analysis())
 
     # 分析策略的风险指标
     def _risk_analyze(self) -> None:
         self._strategy_returns = self._get_strategy_returns(self._raw_result)
-        self._benchmark_returns = self._getBenchmarkReturns(self._raw_result)
+        self._benchmark_returns = self._get_benchmark_returns(self._raw_result)
         risk = RiskAnalyzer(self._strategy_returns, self._benchmark_returns)
         result = risk.run()
-        self._backtest_summary.update(result.to_dict())
-
-    # 取得优化参数时的指标结果
-    # def _getOptAnalysis(self, result):
-    #     temp = dict()
-    #     temp["总收益率"] = result[0].analyzers.RE.get_analysis()["rtot"]
-    #     temp["年化收益率"] = result[0].analyzers.RE.get_analysis()["rnorm"]
-    #     temp["夏普比率"] = result[0].analyzers.sharpe.get_analysis()["sharperatio"]
-    #     temp["最大回撤"] = result[0].analyzers.DD.get_analysis().max.drawdown
-    #     temp["最大回撤期间"] = result[0].analyzers.DD.get_analysis().max.len
-    #     sqn = result[0].analyzers.SQN.get_analysis()["sqn"]
-    #     temp["SQN"] = sqn
-    #     temp["策略评价(根据SQN)"] = self._judgeBySQN(sqn)
-    #     trade_info = self.__results[0].analyzers.TA.get_analysis()
-    #     self._winInfo(trade_info, temp)
-    #     return temp
-
-    # 在优化多个参数时计算并保存回测结果
-    # def _optResultMore(self, results, **kwargs):
-    #     testResults = pd.DataFrame()
-    #     i = 0
-    #     for key in kwargs:
-    #         for value in kwargs[key]:
-    #             temp = self._getOptAnalysis(results[i])
-    #             temp["参数名"] = key
-    #             temp["参数值"] = value
-    #             returns = self._timeReturns(results[i])
-    #             benchReturns = self._getBenchmarkReturns(results[i])
-    #             self._riskAnaly(returns, benchReturns, temp)
-    #             testResults = testResults.append(temp, ignore_index=True)
-    #         # testResults.set_index(["参数值"], inplace = True)
-    #     return testResults
-
-    # 在优化参数时计算并保存回测结果
-    # def _optResult(self, results, **kwargs):
-    #     testResults = pd.DataFrame()
-    #     params = []
-    #     for k, v in kwargs.items():
-    #         for t in v:
-    #             params.append(t)
-    #     i = 0
-    #     for result in results:
-    #         temp = self._getOptAnalysis(result)
-    #         temp["参数名"] = k
-    #         temp["参数值"] = params[i]
-    #         i += 1
-    #         returns = self._timeReturns(result)
-    #         benchReturns = self._getBenchmarkReturns(result)
-    #         self._riskAnaly(returns, benchReturns, temp)
-    #         testResults = testResults.append(temp, ignore_index=True)
-    #     # testResults.set_index(["参数值"], inplace = True)
-    #     return testResults
-    # 获取策略及基准策略收益率的序列
-    # def getReturns(self):
-    #     return self._strategy_returns, self._benchmark_returns
-
-    # 执行参数优化的回测
-    # def optRun(self, *args, **kwargs):
-    #     self._optStrategy(*args, **kwargs)
-    #     results = self.__cerebro.run()
-    #     if len(kwargs) == 1:
-    #         testResults = self._optResult(results, **kwargs)
-    #     elif len(kwargs) > 1:
-    #         testResults = self._optResultMore(results, **kwargs)
-    #     self._init()
-    #     return testResults
-
-    # 进行参数优化
-    # def _optStrategy(self, *args, **kwargs):
-    #     self._cerebro = bt.Cerebro(maxcpus=1)
-    #     self._cerebro.optstrategy(self.__config.strategy, *args, **kwargs)
-    #     self._get_data_feeds()
-    #     self._config_cerebro()
+        self._backtest_summary = pd.concat([self._backtest_summary, result])

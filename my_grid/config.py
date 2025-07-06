@@ -5,7 +5,7 @@
 # @Desc    :
 
 # config.py
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Type
 
@@ -26,7 +26,8 @@ class BackTestConfig:
     file_name: List[str]  # 文件名列表
     cash: float = 100000  # 初始资金，默认 100000
     benchmark_code: str = "510300"  # 基准指数代码
-    draw_plot: bool = True  # 是否绘制图表
+    draw_plot: bool = True,  # 是否绘制图表
+    grid_params: dict = field(default_factory=dict)
 
     def __post_init__(self):
         """

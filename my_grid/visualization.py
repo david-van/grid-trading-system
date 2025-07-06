@@ -93,6 +93,12 @@ class PerformanceVisualizer:
     @classmethod
     def show_by_pyfolio(cls, pyfoliozer: bt.analyzers.PyFolio):
         returns, positions, transactions, glev = pyfoliozer.get_pf_items()
+        # pf.create_full_tear_sheet(
+        #     returns,
+        #     positions=positions,
+        #     transactions=transactions,
+        #     # gross_lev=gross_lev,
+        #     round_trips=False)
         # 强制转换类型
         # print(f'returns type is {type(returns)}')
         # print(f'returns.head() = \n{returns.head()}')
