@@ -97,6 +97,7 @@ class PerformanceVisualizer:
         # print("show pic")
         # plt.show()
         # print("savefig pic")
+        plt.savefig(f"result.png")
         # plt.savefig(f"result.png")
 
     @classmethod

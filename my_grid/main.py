@@ -8,14 +8,14 @@ from my_grid.config import BackTestConfig
 
 if __name__ == "__main__":
     grid_params = {
-        "top": 20,
-        "buttom": 10,
+        "top": 25,
+        "bottom": 10,
         "step_percent": 0.05,
     }
     opt_grid_params = {
-        "top": [20],
-        "buttom": [10],
-        "step_percent": np.arange(start=0.05, stop=0.11, step=0.01),
+        "top": range(15, 26),
+        "bottom": range(8, 14),
+        "step_percent": np.arange(start=0.05, stop=0.15, step=0.01),
     }
     backtest_config = BackTestConfig(strategy=my_strategy.GridStrategy,
                                      start=datetime.datetime(2024, 1, 1),

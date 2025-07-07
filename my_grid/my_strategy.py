@@ -6,14 +6,14 @@ class GridStrategy(bt.Strategy):
     params = (
         ("printlog", True),
         ("top", None),
-        ("buttom", None),
+        ("bottom", None),
         ("step_percent", None),
     )
 
     def __init__(self):
         params_dict = dict(self.p._getkwargs())
         print(f'params is {params_dict}')
-        # self.mid = (self.p.top + self.p.buttom) / 2.0
+        # self.mid = (self.p.top + self.p.bottom) / 2.0
         # # 百分比区间计算
         # # 这里多1/2，是因为arange函数是左闭右开区间。
         # perc_level = []
@@ -25,7 +25,7 @@ class GridStrategy(bt.Strategy):
         grid_prices = []
 
         current_price = self.p.top
-        while current_price >= self.p.buttom:
+        while current_price >= self.p.bottom:
             grid_prices.append(current_price)
             current_price = round(current_price * (1 - self.p.step_percent), 2)
         self.price_levels = grid_prices
@@ -46,11 +46,14 @@ class GridStrategy(bt.Strategy):
             for i in range(len(self.price_levels)):
                 price = self.data.close[0]
                 # print("c", i, price, self.price_levels[i][0])
-                if self.data.close[0] > self.price_levels[i]:
+                if price > self.price_levels[i]:
                     self.last_price_index = i
-                    self.order_target_percent(target=i / (len(self.price_levels) - 1))
-                    print("开仓")
-                    return
+                    # self.order_target_percent(target=i / (len(self.price_levels) - 1))
+                    break
+            if self.last_price_index > 0 :
+                for i in range(self.last_price_index):
+                    self.sell(size=200, price=self.price_levels[i], exectype=bt.Order.Licmit)
+                print("开仓.......")
         # 调仓
         else:
             signal = False
@@ -90,6 +93,10 @@ class GridStrategy(bt.Strategy):
             print('%s, %s' % (dt.isoformat(), txt))
 
     def notify_order(self, order):
+        self.log(
+            f'记录日志,时间为：{bt.num2date(self.data.datetime[0]).isoformat()} order.status is {order.status} ')
+
+
         # 有交易提交/被接受，啥也不做
         if order.status in [order.Submitted, order.Accepted]:
             return

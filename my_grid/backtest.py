@@ -5,7 +5,7 @@
 # @Desc    :
 # coding:utf-8
 # 量化交易回测类
-
+import datetime
 
 import backtrader as bt
 import backtrader.analyzers as btay
@@ -69,7 +69,7 @@ class BackTest:
             # self._benchFeed = None
             self.populate_summary()
             map_summary = {
-                'top': p.top, 'buttom': p.buttom,
+                'top': p.top, 'bottom': p.buttom,
                 'step_percent': p.step_percent
             }
             #  计算风险汇报
@@ -85,7 +85,8 @@ class BackTest:
             PerformanceVisualizer.draw_result(self._cerebro)
         # 将 records 转换为 DataFrame 并保存为 CSV
         df_records = pd.DataFrame(records)
-        df_records.to_csv('grid_strategy_opt_results.csv', index=False, encoding='utf-8-sig')
+        current_date = datetime.datetime.now().date().isoformat()
+        df_records.to_csv(f'grid_opt_results_{current_date}.csv', index=False, encoding='utf-8-sig')
 
         return df_records
 
