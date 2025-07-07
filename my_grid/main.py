@@ -19,14 +19,14 @@ if __name__ == "__main__":
     }
     backtest_config = BackTestConfig(strategy=my_strategy.GridStrategy,
                                      start=datetime.datetime(2024, 1, 1),
-                                     end=datetime.datetime(2025, 2, 1),
+                                     end=datetime.datetime(2025, 1, 1),
                                      code=["300363"],
                                      name=["博腾股份"],
                                      file_name=["sz.300363_60_2023-01-01.csv"],
                                      cash=20000,
                                      draw_plot=False
                                      )
-    run_opt = False
+    run_opt = True
     if run_opt:
         backtest_config.grid_params = opt_grid_params
         backtest = backtest.BackTest(backtest_config)

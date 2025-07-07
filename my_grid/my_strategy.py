@@ -52,7 +52,7 @@ class GridStrategy(bt.Strategy):
                     break
             if self.last_price_index > 0 :
                 for i in range(self.last_price_index):
-                    self.sell(size=200, price=self.price_levels[i], exectype=bt.Order.Licmit)
+                    self.sell(size=200, price=self.price_levels[i], exectype=bt.Order.Market)
                 print("开仓.......")
         # 调仓
         else:
@@ -69,13 +69,13 @@ class GridStrategy(bt.Strategy):
                 if upper != None and self.data.close[0] > upper:
                     self.last_price_index = self.last_price_index - 1
                     signal = True
-                    self.order = self.sell(size=200, price=upper, exectype=bt.Order.Limit)
+                    self.order = self.sell(size=200, price=upper, exectype=bt.Order.Market)
                     continue
                 # 还不是最重仓，继续跌，再买一档
                 if lower != None and self.data.close[0] < lower:
                     self.last_price_index = self.last_price_index + 1
                     signal = True
-                    self.order = self.buy(size=200, price=lower, exectype=bt.Order.Limit)
+                    self.order = self.buy(size=200, price=lower, exectype=bt.Order.Market)
                     continue
                 break
             if signal:
@@ -93,8 +93,8 @@ class GridStrategy(bt.Strategy):
             print('%s, %s' % (dt.isoformat(), txt))
 
     def notify_order(self, order):
-        self.log(
-            f'记录日志,时间为：{bt.num2date(self.data.datetime[0]).isoformat()} order.status is {order.status} ')
+        # self.log(
+        #     f'记录日志,时间为：{bt.num2date(self.data.datetime[0]).isoformat()} order.status is {order.status} ')
 
 
         # 有交易提交/被接受，啥也不做

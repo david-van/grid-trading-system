@@ -69,7 +69,7 @@ class BackTest:
             # self._benchFeed = None
             self.populate_summary()
             map_summary = {
-                'top': p.top, 'bottom': p.buttom,
+                'top': p.top, 'bottom': p.bottom,
                 'step_percent': p.step_percent
             }
             #  计算风险汇报
