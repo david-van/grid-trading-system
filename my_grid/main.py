@@ -8,9 +8,9 @@ from my_grid.config import BackTestConfig
 
 if __name__ == "__main__":
     grid_params = {
-        "top": 25,
+        "top": 20,
         "bottom": 10,
-        "step_percent": 0.05,
+        "step_percent": 0.08,
     }
     opt_grid_params = {
         "top": range(15, 26),
@@ -26,7 +26,7 @@ if __name__ == "__main__":
                                      cash=20000,
                                      draw_plot=False
                                      )
-    run_opt = True
+    run_opt = False
     if run_opt:
         backtest_config.grid_params = opt_grid_params
         backtest = backtest.BackTest(backtest_config)

@@ -119,7 +119,7 @@ class BackTest:
         # 设置初始资金
         self._cerebro.broker.setcash(self.__config.cash)
         # 添加分析对象
-        self._cerebro.addanalyzer(btay.SharpeRatio, _name="SharpeRatio", riskfreerate=0.02, stddev_sample=True,
+        self._cerebro.addanalyzer(btay.SharpeRatio, _name="SharpeRatio", riskfreerate=0.02, stddev_sample=False,
                                   annualize=True)
         self._cerebro.addanalyzer(btay.AnnualReturn, _name="AnnualReturn")
         self._cerebro.addanalyzer(btay.DrawDown, _name="DrawDown")

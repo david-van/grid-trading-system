@@ -7,11 +7,20 @@ import efinance as ef
 
 from my_grid.get_1_mintus import get_quote_history_1_minute
 
-stock_code = '513010'
+stock_code = '399438'
 
 frequency = 101
-start_date = '20230101'
+start_date = '20140101'
 end_date = '20250630'
+# stock_code = '399975.sz'
+#
+# frequency = 'd'
+# start_date = '2012-06-01'
+# start_date = '2010-01-01'
+# start_date = '2016-01-01'
+# start_date = '2020-07-01'
+# start_date = '2014-01-01'
+# end_date = '2025-06-30'
 
 df = ef.stock.get_quote_history(stock_code, beg=start_date, end=end_date, klt=frequency)
 df.to_csv(f'{stock_code}_{frequency}_{start_date}.csv', index=False, encoding='utf-8')  # 避免中文乱码
