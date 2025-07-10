@@ -1,4 +1,55 @@
+from dataclasses import dataclass
+
 import backtrader as bt
+import pandas as pd
+from datetime import datetime
+
+
+@dataclass(init=False)
+class OrderRecord:
+    trade_time: datetime  # 交易时间
+    trade_direction: str  # 交易方向
+    set_price: float  # 设定价格
+    deal_price: float  # 成交价格
+    deal_quantity: int  # 成交数量
+    deal_amount: float  # 成交金额
+    commission: float  # 手续费
+
+    def __init__(self, trade_time, deal_price, set_price, deal_quantity, deal_amount, commission,
+                 trade_direction: str = None):
+        # 在对象创建后对浮点数字段进行格式化
+        self.trade_time = trade_time
+        self.trade_direction = trade_direction
+        self.deal_price = round(deal_price, 3)
+        self.set_price = round(set_price, 3)
+        self.deal_quantity = deal_quantity
+        self.deal_amount = round(deal_amount, 3)
+        self.commission = round(commission, 3)
+
+
+class MergeIndex:
+    def merge_data(self):
+        # 读取csv文件
+        pb = pd.read_csv(
+            r'D:\code\pycharm\test\grid-trading-system\data\Index\pb\证券公司_PB_市值加权_上市以来_20250710_072405.csv')
+        index = pd.read_csv(r'D:\code\pycharm\test\grid-trading-system\data\Index\points\399975_101_20140101.csv')
+        pb = pb.loc[:, ["日期", "收盘点位", "PB 分位点", "PB 80%分位点值", "PB 50%分位点值", "PB 20%分位点值"]]
+        # 确保日期列是datetime类型
+        pb['date'] = pd.to_datetime(pb['日期'], errors='coerce')
+        index['date'] = pd.to_datetime(index['日期'], errors='coerce')
+        pb = pb.drop('日期', axis=1)
+        index = index.drop('日期', axis=1)
+
+        # 根据日期合并数据集
+        df = pd.merge(index, pb, on='date', how='left')
+        csv_filename = '证券公司_399975_PB.csv'
+        df.to_csv(csv_filename, index=False, encoding='utf-8')
+
+
+
+if __name__ == '__main__':
+    merge_index = MergeIndex()
+    merge_index.merge_data()
 
 
 # 网格策略
@@ -10,7 +61,7 @@ class GridStrategy(bt.Strategy):
         ("step_percent", None),
     )
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         params_dict = dict(self.p._getkwargs())
         print(f'params is {params_dict}')
         # self.mid = (self.p.top + self.p.bottom) / 2.0
@@ -33,6 +84,8 @@ class GridStrategy(bt.Strategy):
         self.last_price_index = None
         # 总手续费
         self.comm = 0.0
+        self.total_value = args[0]
+        self.trade_record = []
 
     def next(self):
         # print('当前可用资金', self.broker.getcash())
@@ -50,7 +103,7 @@ class GridStrategy(bt.Strategy):
                     self.last_price_index = i
                     # self.order_target_percent(target=i / (len(self.price_levels) - 1))
                     break
-            if self.last_price_index > 0 :
+            if self.last_price_index > 0:
                 for i in range(self.last_price_index):
                     self.sell(size=200, price=self.price_levels[i], exectype=bt.Order.Market)
                 print("开仓.......")
@@ -95,7 +148,6 @@ class GridStrategy(bt.Strategy):
     def notify_order(self, order):
         # self.log(
         #     f'记录日志,时间为：{bt.num2date(self.data.datetime[0]).isoformat()} order.status is {order.status} ')
-
 
         # 有交易提交/被接受，啥也不做
         if order.status in [order.Submitted, order.Accepted]:
@@ -142,3 +194,28 @@ class GridStrategy(bt.Strategy):
     # 输出手续费
     def stop(self):
         self.log("手续费:%.2f 成本比例:%.5f" % (self.comm, self.comm / self.broker.getvalue()))
+        for order in self.broker.orders:
+            order_record = OrderRecord(
+                trade_time=bt.num2date(order.executed.dt),
+                set_price=order.created.price,
+                deal_price=order.executed.price,
+                deal_amount=order.executed.price * order.executed.size,
+                deal_quantity=order.executed.size,
+                commission=order.executed.comm
+            )
+            if order.isbuy():
+                order_record.trade_direction = 'buy'
+                self.total_value -= order_record.deal_amount
+            else:
+                order_record.trade_direction = 'sell'
+                self.total_value += abs(order_record.deal_amount)
+            self.trade_record.append(order_record)
+
+        self.total_value -= self.comm
+        print(f"当前value is {self.broker.get_value()},计算total_value is {self.total_value}")
+        # 将数据转换为DataFrame
+        df = pd.DataFrame([order.__dict__ for order in self.trade_record])
+
+        # 将DataFrame写入CSV文件
+        csv_filename = 'orders.csv'
+        df.to_csv(csv_filename, index=False, encoding='utf-8')
