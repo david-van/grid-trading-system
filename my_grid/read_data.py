@@ -5,8 +5,8 @@
 # @Desc    :
 import datetime
 import os
-from imaplib import Literal
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pandas.core.frame import DataFrame
@@ -113,21 +113,49 @@ class MergeIndex:
         # 2. 计算当前滚动窗口中 PB 的 20% 分位值
         df['pb_20th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
             lambda x: np.percentile(x, 20)
-        )
+        ).round(4)
         df['pb_50th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
             lambda x: np.percentile(x, 50)
-        )
+        ).round(4)
         df['pb_80th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
             lambda x: np.percentile(x, 80)
-        )
+        ).round(4)
 
         csv_filename = '证券公司_399975_PB.csv'
         df.to_csv(csv_filename, index=False, encoding='utf-8')
+
+    def data_show(self, df: pd.DataFrame = None):
+        index_file_name = r'my_grid/证券公司_399975_PB.csv'
+        df = pd.read_csv(os.path.join(project_root, index_file_name))
+        # 绘制折线图
+        plt.figure(figsize=(12, 6))
+
+        # 绘制每一条百分位列
+        plt.plot(df.index, df['pb_percentile'], label='PB Percentile')
+        plt.plot(df.index, df['pb_20th_percentile'], label='PB 20th Percentile')
+        plt.plot(df.index, df['pb_50th_percentile'], label='PB 50th Percentile')
+        plt.plot(df.index, df['pb_80th_percentile'], label='PB 80th Percentile')
+        # 绘制点位图
+        plt.plot(df.index, df['收盘'], 'o', label='Close Points')
+
+        # 添加标题和标签
+        plt.title('Percentile Lines')
+        plt.xlabel('Date')
+        plt.ylabel('Values')
+        plt.legend()  # 显示图例
+
+        # 展示图表
+        plt.show()
 
 
 def merge_index_data():
     merge_index = MergeIndex()
     merge_index.merge_data()
+
+
+def merge_index_data_show():
+    merge_index = MergeIndex()
+    merge_index.data_show()
 
 
 def test_get_data():
@@ -141,4 +169,5 @@ def test_get_data():
 
 if __name__ == '__main__':
     # test_get_data()
-    merge_index_data()
+    # merge_index_data()
+    merge_index_data_show()
