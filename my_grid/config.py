@@ -49,3 +49,24 @@ class BackTestConfig:
         if self.start is not None and self.end is not None:
             if self.start >= self.end:
                 raise ValueError(f"start 时间不能晚于 end 时间: start={self.start}, end={self.end}")
+
+@dataclass(init=False)
+class OrderRecord:
+    trade_time: datetime  # 交易时间
+    trade_direction: str  # 交易方向
+    set_price: float  # 设定价格
+    deal_price: float  # 成交价格
+    deal_quantity: int  # 成交数量
+    deal_amount: float  # 成交金额
+    commission: float  # 手续费
+
+    def __init__(self, trade_time, deal_price, set_price, deal_quantity, deal_amount, commission,
+                 trade_direction: str = None):
+        # 在对象创建后对浮点数字段进行格式化
+        self.trade_time = trade_time
+        self.trade_direction = trade_direction
+        self.deal_price = round(deal_price, 3)
+        self.set_price = round(set_price, 3)
+        self.deal_quantity = deal_quantity
+        self.deal_amount = round(deal_amount, 3)
+        self.commission = round(commission, 3)

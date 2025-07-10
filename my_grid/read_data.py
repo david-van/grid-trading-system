@@ -5,7 +5,9 @@
 # @Desc    :
 import datetime
 import os
+from imaplib import Literal
 
+import numpy as np
 import pandas as pd
 from pandas.core.frame import DataFrame
 
@@ -68,10 +70,75 @@ def get_data_by_date(file_name: str, start_time: datetime.datetime, end_time: da
     return filtered
 
 
-if __name__ == '__main__':
+class MergeIndex:
+    def merge_data(self):
+        # 读取csv文件
+        pb_file_name = r'data/Index/pb/证券公司_PB_市值加权_上市以来_20250710_072405.csv'
+        index_file_name = r'data/Index/points/399975_101_20140101.csv'
+        pb_data_path = os.path.join(project_root, pb_file_name)
+        index_data_path = os.path.join(project_root, index_file_name)
+        pb = pd.read_csv(os.path.join(project_root, pb_file_name))
+        index = pd.read_csv(os.path.join(project_root, index_file_name))
+        pb = pb.loc[:,
+             ["日期", "收盘点位", "PB市值加权", "PB 分位点", "PB 80%分位点值", "PB 50%分位点值", "PB 20%分位点值"]]
+        pb = pb.rename(columns={
+            'PB 80%分位点值': 'PB_80',
+            'PB 50%分位点值': 'PB_50',
+            'PB 20%分位点值': 'PB_20',
+        })
+        pb['pb_value'] = pb['PB市值加权'].astype(str).str.lstrip("=")
+        pb['PB_80'] = pb['PB_80'].astype(str).str.lstrip("=")
+        pb['PB_50'] = pb['PB_50'].astype(str).str.lstrip("=")
+        pb['PB_20'] = pb['PB_20'].astype(str).str.lstrip("=")
+        # for row in pb.itertuples():
+        #     print(row.datetime, row.open, row.close)
+
+        # 确保日期列是datetime类型
+        pb['date'] = pd.to_datetime(pb['日期'], errors='coerce')
+        index['date'] = pd.to_datetime(index['日期'], errors='coerce')
+        pb = pb.drop('日期', axis=1)
+        index = index.drop('日期', axis=1)
+
+        # 根据日期合并数据集
+        df: pd.DataFrame = pd.merge(index, pb, on='date', how='left')
+
+        # 设置 date 为索引
+        df.set_index(keys=['date'])
+
+        # 按照 252 * 3 天窗口计算 pb 的滚动百分位
+        pb_point = df['pb_value']
+        df['pb_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
+            lambda x: pd.Series(x).rank(pct=True).iloc[-1].round(4)
+        )
+        # 2. 计算当前滚动窗口中 PB 的 20% 分位值
+        df['pb_20th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
+            lambda x: np.percentile(x, 20)
+        )
+        df['pb_50th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
+            lambda x: np.percentile(x, 50)
+        )
+        df['pb_80th_percentile'] = pb_point.rolling(window=252 * 3, min_periods=1).apply(
+            lambda x: np.percentile(x, 80)
+        )
+
+        csv_filename = '证券公司_399975_PB.csv'
+        df.to_csv(csv_filename, index=False, encoding='utf-8')
+
+
+def merge_index_data():
+    merge_index = MergeIndex()
+    merge_index.merge_data()
+
+
+def test_get_data():
     file_name = 'sz.300363_60_2023-01-01.csv'
     start_time = datetime.datetime(2023, 1, 1)
     end_time = datetime.datetime(2023, 1, 6)
     print(type(start_time))
     data = get_data_by_date(file_name, start_time, end_time)
     print(data)
+
+
+if __name__ == '__main__':
+    # test_get_data()
+    merge_index_data()

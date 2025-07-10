@@ -1,55 +1,7 @@
-from dataclasses import dataclass
-
 import backtrader as bt
 import pandas as pd
-from datetime import datetime
 
-
-@dataclass(init=False)
-class OrderRecord:
-    trade_time: datetime  # 交易时间
-    trade_direction: str  # 交易方向
-    set_price: float  # 设定价格
-    deal_price: float  # 成交价格
-    deal_quantity: int  # 成交数量
-    deal_amount: float  # 成交金额
-    commission: float  # 手续费
-
-    def __init__(self, trade_time, deal_price, set_price, deal_quantity, deal_amount, commission,
-                 trade_direction: str = None):
-        # 在对象创建后对浮点数字段进行格式化
-        self.trade_time = trade_time
-        self.trade_direction = trade_direction
-        self.deal_price = round(deal_price, 3)
-        self.set_price = round(set_price, 3)
-        self.deal_quantity = deal_quantity
-        self.deal_amount = round(deal_amount, 3)
-        self.commission = round(commission, 3)
-
-
-class MergeIndex:
-    def merge_data(self):
-        # 读取csv文件
-        pb = pd.read_csv(
-            r'D:\code\pycharm\test\grid-trading-system\data\Index\pb\证券公司_PB_市值加权_上市以来_20250710_072405.csv')
-        index = pd.read_csv(r'D:\code\pycharm\test\grid-trading-system\data\Index\points\399975_101_20140101.csv')
-        pb = pb.loc[:, ["日期", "收盘点位", "PB 分位点", "PB 80%分位点值", "PB 50%分位点值", "PB 20%分位点值"]]
-        # 确保日期列是datetime类型
-        pb['date'] = pd.to_datetime(pb['日期'], errors='coerce')
-        index['date'] = pd.to_datetime(index['日期'], errors='coerce')
-        pb = pb.drop('日期', axis=1)
-        index = index.drop('日期', axis=1)
-
-        # 根据日期合并数据集
-        df = pd.merge(index, pb, on='date', how='left')
-        csv_filename = '证券公司_399975_PB.csv'
-        df.to_csv(csv_filename, index=False, encoding='utf-8')
-
-
-
-if __name__ == '__main__':
-    merge_index = MergeIndex()
-    merge_index.merge_data()
+from my_grid.config import OrderRecord
 
 
 # 网格策略
@@ -61,18 +13,9 @@ class GridStrategy(bt.Strategy):
         ("step_percent", None),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         params_dict = dict(self.p._getkwargs())
         print(f'params is {params_dict}')
-        # self.mid = (self.p.top + self.p.bottom) / 2.0
-        # # 百分比区间计算
-        # # 这里多1/2，是因为arange函数是左闭右开区间。
-        # perc_level = []
-        # for x in np.arange(1 + 0.02 * 5, 1 - 0.02 * 5 - 0.02 / 2, -0.02):
-        #     perc_level.append(x)
-        # # 价格区间
-        # # print(self.mid)
-        # self.price_levels = [self.mid * x for x in perc_level]
         grid_prices = []
 
         current_price = self.p.top
@@ -84,7 +27,7 @@ class GridStrategy(bt.Strategy):
         self.last_price_index = None
         # 总手续费
         self.comm = 0.0
-        self.total_value = args[0]
+        self.total_value = self.broker.get_value()
         self.trade_record = []
 
     def next(self):
